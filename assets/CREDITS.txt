@@ -1,0 +1,8 @@
+Egg Thief — third-party assets
+
+3D models, textures and sounds: Kenney (www.kenney.nl), CC0 1.0 (public domain)
+  Blocky Characters, Cube Pets, Nature Kit, Interface Sounds, Impact Sounds, Music Jingles,
+  Starter Kit 3D Platformer (coin, cloud, flag models; coin/jump/land sounds)
+Font: Rubik, SIL Open Font License 1.1 (see fonts/OFL.txt)
+Engine: three.js r160, MIT License
+Music: procedural, made in code for this game
