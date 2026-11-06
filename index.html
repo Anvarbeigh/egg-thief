@@ -38,7 +38,7 @@
   @keyframes wob { 0%,100% { transform: rotate(-10deg) } 50% { transform: rotate(10deg) } }
   #bar { width: min(360px, 80vw); height: 22px; border-radius: 12px; background: rgba(0,0,0,.25); overflow: hidden; border: 3px solid #fff; }
   #bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #ffd84a, #ff9d2e); transition: width .2s; }
-  #start { background: radial-gradient(circle at 50% 35%, rgba(255,255,255,.18), rgba(10,20,50,.55)); }
+  #start { background: linear-gradient(rgba(10,20,50,.38), rgba(10,20,50,0) 28%, rgba(10,20,50,0) 68%, rgba(10,20,50,.5)); }
   #start p { margin: 0; max-width: 560px; font-size: 18px; font-weight: 600; text-shadow: 0 2px 0 rgba(0,0,0,.4); }
   #start .small { font-size: 14px; opacity: .9; font-weight: 500; }
   #btnPlay { font-size: 32px; padding: 16px 56px; border-radius: 22px; animation: pulse 1.2s ease-in-out infinite; }
@@ -62,10 +62,11 @@
   .dot::after { content: ""; position: absolute; top: -4px; right: -4px; width: 16px; height: 16px; border-radius: 50%; background: #ff3b3b; border: 3px solid #fff; animation: pulse 1s infinite; }
   #gear { width: 44px; height: 44px; font-size: 20px; border-radius: 14px; --c: rgba(20,28,55,.6); --d: rgba(0,0,0,.3); }
 
-  #tut { position: absolute; left: 50%; transform: translateX(-50%); top: max(12px, env(safe-area-inset-top)); max-width: min(560px, calc(100vw - 200px));
+  #tut { position: absolute; left: 50%; transform: translateX(-50%); top: max(12px, env(safe-area-inset-top)); max-width: min(560px, calc(100vw - 200px)); pointer-events: auto;
          background: linear-gradient(#ffe066, #ffbf2e); color: #4a2a00; text-shadow: none; font-weight: 800; font-size: 17px; padding: 10px 18px; border-radius: 18px;
          box-shadow: 0 5px 0 #c98a00, 0 10px 20px rgba(0,0,0,.25); text-align: center; animation: tutIn .4s; z-index: 1; }
-  #tut b { color: #b84a00; }
+  #tut small { display: block; font-size: 12px; font-weight: 600; opacity: .8; margin-top: 2px; }
+  #tut .skip { margin-left: 10px; border: 0; border-radius: 10px; padding: 3px 9px; font-weight: 800; font-size: 12px; background: rgba(0,0,0,.18); color: #4a2a00; cursor: pointer; pointer-events: auto; vertical-align: middle; }
   @keyframes tutIn { from { translate: 0 -20px; opacity: 0 } }
   #zonehint { position: absolute; bottom: 96px; left: 50%; transform: translateX(-50%); text-align: center; font-weight: 800; font-size: 18px;
               background: rgba(20,28,55,.6); padding: 6px 16px; border-radius: 14px; opacity: 0; transition: opacity .3s; white-space: nowrap; }
@@ -76,6 +77,7 @@
   #toasts { position: absolute; top: 30%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .toast { font-weight: 900; font-size: 26px; padding: 6px 18px; border-radius: 14px; background: rgba(20,28,55,.6); animation: pop 2.2s forwards; white-space: nowrap; }
   @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 10% { transform: scale(1.08); opacity: 1 } 18% { transform: scale(1) } 80% { opacity: 1 } 100% { opacity: 0; transform: translateY(-30px) } }
+  #vig { position: fixed; inset: 0; pointer-events: none; z-index: 6; background: radial-gradient(ellipse at 50% 45%, transparent 58%, rgba(8,18,48,.30) 100%); }
   #flash { position: fixed; inset: 0; background: #ff3030; opacity: 0; pointer-events: none; transition: opacity .25s; z-index: 11; }
   #fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 11; }
 
@@ -173,6 +175,7 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<div id="vig"></div>
 <div id="flash"></div>
 <div id="fade"></div>
 
@@ -180,7 +183,7 @@
   <div id="stats">
     <div class="chip" id="coinChip"><span class="ic"></span><span id="coins">0</span></div>
     <div class="chip"><span class="ic">💰</span><span id="income">0</span><small data-t="perSec"></small></div>
-    <div class="chip"><span class="ic">👟</span><span id="speed">8</span></div>
+    <div class="chip hidden"><span class="ic">👟</span><span id="speed">8</span></div>
     <div class="chip hidden" id="rbChip"><span class="ic">🌀</span><span id="rbText"></span></div>
   </div>
   <div id="msgs"><div id="tut" class="hidden"></div><div id="zonehint"></div><div id="carry"></div></div>

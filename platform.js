@@ -20,6 +20,7 @@ const base = {
   adColor: 'green',            // colour of the "watch an ad" buttons
   ownPauseEvents: false,       // true: the portal sends pause/resume, the page must not use the Visibility API
   ownAudioControl: false,      // true: the portal has its own mute switch, hide the in-game sound settings
+  pauseKey: 'Escape',          // Poki wants Esc to pause; CrazyGames asks games not to bind Esc at all
   async init() {},
   loadingDone: noop,           // first frame is on screen and the game can be played
   gameplayStart: noop,
@@ -45,6 +46,7 @@ const adapters = {
 
   crazygames: {
     hasRewarded: true,
+    pauseKey: 'KeyP',
     sdk: null,
     async init() {
       const sdk = window.CrazyGames && window.CrazyGames.SDK;
