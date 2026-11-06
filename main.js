@@ -1452,7 +1452,8 @@ boot();
 
 // debug hook for testing in the console (local dev or ?debug only, never in portal builds)
 let simT = 0;
-if (platform.name === 'local' || new URLSearchParams(location.search).has('debug')) window.__game = {
+// ?debug works on this machine only: a real player's URL must not expose the game's insides
+if (platform.name === 'local' || (new URLSearchParams(location.search).has('debug') && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) window.__game = {
   state, guards, nests, ZONES, save, keys, platform, renderer, scene, camera, fx,
   get player() { return player; },
   setCam(yaw, pitch, dist) { camYaw = yaw; camPitch = pitch; camDist = dist; camYawTarget = null; },
