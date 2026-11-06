@@ -20,7 +20,7 @@ const RARITIES = [
 const PET_EMOJI = ['🐤', '🐰', '🐛', '🐱', '🦊', '🐧', '🐼', '🐨', '🦜', '🐯', '🦌', '🐻‍❄️', '🦁', '🐘', '🦒', '🐝', '🐵', '🦀'];
 
 const ZONES = [
-  { z0: 40, z1: 110, ground: 0x74c646, edge: 0x58a836, egg: 0xfff4dc, guard: { speed: 5, model: 'j', n: 2, scale: 1.1 }, weights: [80, 18, 2, 0, 0, 0], hatch: 8, decor: 'meadow', arch: 0xff7a59 },
+  { z0: 40, z1: 110, ground: 0x86d45e, edge: 0x5fb243, egg: 0xfff4dc, guard: { speed: 5, model: 'j', n: 2, scale: 1.1 }, weights: [80, 18, 2, 0, 0, 0], hatch: 8, decor: 'meadow', arch: 0xff7a59 },
   { z0: 130, z1: 200, ground: 0x4fae55, edge: 0x2f7d3a, egg: 0xc9f29b, guard: { speed: 10, model: 'j', n: 3, scale: 1.15 }, weights: [50, 35, 13, 2, 0, 0], hatch: 15, decor: 'forest', arch: 0xa0663a },
   { z0: 220, z1: 290, ground: 0xdfeaf3, edge: 0xc4dae9, egg: 0xa6e4ff, guard: { speed: 14, model: 'j', n: 3, scale: 1.2 }, weights: [0, 45, 40, 13, 2, 0], hatch: 25, decor: 'snow', arch: 0x3b8fe0 },
   { z0: 310, z1: 380, ground: 0xf0cf86, edge: 0xd9ad5c, egg: 0xffcf6b, guard: { speed: 18, model: 'g', n: 4, scale: 1.25 }, weights: [0, 0, 50, 38, 11, 1], hatch: 40, decor: 'desert', arch: 0xd9822b },
@@ -122,16 +122,14 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
 
 const scene = new THREE.Scene();
-const HORIZON = 0xc9e6ff;
-scene.fog = new THREE.Fog(HORIZON, 95, 260);
+const HORIZON = 0xcdeeff;
+scene.fog = new THREE.Fog(HORIZON, 70, 190);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 500);
 
-scene.add(new THREE.HemisphereLight(0xdcefff, 0x5e9440, 1.1));
-const sun = new THREE.DirectionalLight(0xfff1d6, 3.0);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a9a70, 1.5));
+const sun = new THREE.DirectionalLight(0xfff4e0, 2.1);
 sun.castShadow = true;
 sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 30, bottom: -30, near: 1, far: 120 });
@@ -142,9 +140,9 @@ scene.add(sun, sun.target);
 {
   const sky = new THREE.Mesh(new THREE.SphereGeometry(400, 24, 12), new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
-    uniforms: { top: { value: new THREE.Color(0x2b86f2) }, bottom: { value: new THREE.Color(HORIZON) } },
+    uniforms: { top: { value: new THREE.Color(0x3d9dff) }, bottom: { value: new THREE.Color(HORIZON) } },
     vertexShader: 'varying float h; void main(){ h = normalize(position).y; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-    fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying float h; void main(){ gl_FragColor = vec4(mix(bottom, top, smoothstep(0.0, 0.5, h)), 1.0); }',
+    fragmentShader: 'uniform vec3 top; uniform vec3 bottom; varying float h; void main(){ gl_FragColor = vec4(mix(bottom, top, smoothstep(0.0, 0.55, h)), 1.0); }',
   }));
   sky.userData.followCam = true;
   scene.add(sky);
@@ -157,18 +155,10 @@ window.addEventListener('resize', () => {
   camera.updateProjectionMatrix();
 });
 
-let ramp = null;
-function toonRamp() {
-  if (!ramp) {
-    ramp = new THREE.DataTexture(new Uint8Array([120, 120, 120, 255, 205, 205, 205, 255, 255, 255, 255, 255]), 3, 1);
-    ramp.minFilter = ramp.magFilter = THREE.NearestFilter; ramp.needsUpdate = true;
-  }
-  return ramp;
-}
 const matCache = new Map();
 function mat(color, opts = {}) {
   const key = color + JSON.stringify(opts);
-  if (!matCache.has(key)) matCache.set(key, new THREE.MeshToonMaterial({ color, gradientMap: toonRamp(), ...opts }));
+  if (!matCache.has(key)) matCache.set(key, new THREE.MeshLambertMaterial({ color, ...opts }));
   return matCache.get(key);
 }
 const box = (w, h, d, color, opts) => {
@@ -275,14 +265,14 @@ function buildWorld() {
     groundPlane(z0, z1, 0, -150, -ROAD_HALF - 1, colorNoise(color), 10);
     groundPlane(z0, z1, 0, ROAD_HALF + 1, 150, colorNoise(color), 10);
   };
-  road(-40, 26, '#78c94a', '#66b83c'); out(-40, 26, 0x5fae34);
+  road(-40, 26, '#f7ecd2', '#efe0bf'); out(-40, 26, 0x9ed66f);
   let prev = 26;
   for (const z of ZONES) {
-    road(prev, z.z0, '#78c94a', '#66b83c'); out(prev, z.z0, 0x5fae34);
+    road(prev, z.z0, '#e9d9b0', '#dfcc9e'); out(prev, z.z0, 0x9ed66f);
     road(z.z0, z.z1, hexCss(z.ground), hexCss(z.ground, 0.93)); out(z.z0, z.z1, z.edge);
     prev = z.z1;
   }
-  road(prev, WORLD_END + 40, '#7a5a4a', '#6b4c3e'); out(prev, WORLD_END + 40, 0x6b4842);
+  road(prev, WORLD_END + 40, '#e9d9b0', '#dfcc9e'); out(prev, WORLD_END + 40, 0x6b4842);
 
   // fences along the road and around the base
   const rails = [];
@@ -291,17 +281,6 @@ function buildWorld() {
   fenceLine(rails, -ROAD_HALF - 0.6, WORLD_END, ROAD_HALF + 0.6, WORLD_END, 3);
   scene.add(instanced('nature:fence_planks', rails));
 
-  // grass tufts and flowers along the fences of the base and the paths, so the near ground is not a bare checkerboard
-  const tufts = [], blooms = [];
-  for (let i = 0; i < 160; i++) {
-    const side = Math.random() < 0.5 ? -1 : 1;
-    const z = rand(-28, WORLD_END);
-    if (ZONES.some((zn) => z > zn.z0 - 3 && z < zn.z1 + 3)) continue;
-    const it = { x: side * rand(ROAD_HALF - 4.5, ROAD_HALF - 1), z, s: rand(1.8, 3), ry: rand(0, 6) };
-    (Math.random() < 0.7 ? tufts : blooms).push(it);
-  }
-  scene.add(instanced('nature:grass_large', tufts));
-  scene.add(instanced('nature:flower_yellowA', blooms));
   buildBase();
   ZONES.forEach((z, i) => buildZone(z, i));
   buildClouds();
@@ -429,7 +408,7 @@ function buildZone(zone, zi) {
   }
   const beam = box(ROAD_HALF * 2 - 1, 1.3, 0.8, zone.arch); beam.position.set(0, 6.4, zone.z0); scene.add(beam);
   const title = makeLabel(`${zi + 1}. ${t('zone')[zi].toUpperCase()}`, '#fff', 512, 96, 10); title.position.set(0, 8.8, zone.z0); scene.add(title);
-  zone.speedLabel = makeLabel('', '#fff', 512, 80, 6); zone.speedLabel.position.set(0, 4.8, zone.z0 - 0.7); scene.add(zone.speedLabel);
+  zone.speedLabel = makeLabel('', '#fff', 512, 80, 8); zone.speedLabel.position.set(0, 4.8, zone.z0 - 0.7); scene.add(zone.speedLabel);
 
   decorate(zone);
 
@@ -523,14 +502,6 @@ function buildPlayer() {
   player.add(carryEgg);
   scene.add(player);
   player.userData.play?.('idle');
-  // the cover shows a ninja with a red belt and headband: add both so the hero reads the same in game
-  const bb = new THREE.Box3().setFromObject(player.userData.model);
-  const h = bb.max.y - bb.min.y, w = (bb.max.x - bb.min.x) * 0.62, d = (bb.max.z - bb.min.z) * 0.62;
-  const red = mat(0xff4d4d, { emissive: 0x3a0000 });
-  const belt = new THREE.Mesh(new THREE.BoxGeometry(w * 1.06, h * 0.045, d * 1.06), red);
-  belt.position.y = bb.min.y + h * 0.40; player.add(belt);
-  const band = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, h * 0.03, d * 0.9), red);
-  band.position.y = bb.min.y + h * 0.80; player.add(band);
 }
 
 // guide: a bouncing arrow over the target + chevrons on the ground from the player
@@ -559,26 +530,23 @@ function buildGuide() {
 const keys = {};
 let camYaw = Math.PI, camPitch = 0.42, camDist = 12;
 let camYawTarget = null;
-let introT = 0;             // seconds left of the opening camera flight (first play only)
-const INTRO_S = 2.8;
 let jumpQueued = false;
 const joy = { active: false, id: null, x: 0, y: 0, cx: 0, cy: 0 };
 if (isTouch) document.body.classList.add('touch');
 
 window.addEventListener('keydown', (e) => {
   keys[e.code] = true;
-  introT = Math.min(introT, 0.35);
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
   if (e.code === 'Space') jumpQueued = true;
   // Esc closes a window, or pauses the game behind the settings window (Poki asks for an Esc pause)
-  if (e.code === platform.pauseKey) { if (panelOpen) closePanels(); else if (started && !platform.ownAudioControl) openPanel('settingsPanel'); }
+  if (e.code === 'Escape') { if (panelOpen) closePanels(); else if (started && !platform.ownAudioControl) openPanel('settingsPanel'); }
   audio.unlock();
 });
 window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 let drag = null;
-canvas.addEventListener('pointerdown', (e) => { introT = Math.min(introT, 0.35); camYawTarget = null; drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ } audio.unlock(); });
+canvas.addEventListener('pointerdown', (e) => { camYawTarget = null; drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ } audio.unlock(); });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || drag.id !== e.pointerId) return;
   camYaw -= (e.clientX - drag.x) * 0.006;
@@ -911,8 +879,6 @@ function updateHud(force) {
   $('btnGift').classList.toggle('dot', giftAvailable());
   $('btnRebirth').classList.toggle('dot', canRebirth());
   $('btnRebirth').classList.toggle('purple', true);
-  $('btnRebirth').classList.toggle('hidden', !state.rebirths && state.best < 5);
-  $('btnIndex').classList.toggle('hidden', !Object.keys(state.index).length);
   for (let i = 0; i < ZONES.length; i++) {
     const z = ZONES[i];
     const ok = playerSpeed() > z.guard.speed;
@@ -927,11 +893,8 @@ function showTut() {
   const el = $('tut');
   if (state.tut >= 5 || !started) { el.classList.add('hidden'); return; }
   el.classList.remove('hidden');
-  el.textContent = t('tut')[state.tut];
-  if (state.tut === 0) { const k = document.createElement('small'); k.textContent = t(isTouch ? 'controlsTouch' : 'controlsPc'); el.appendChild(k); }
-  const skip = document.createElement('button'); skip.className = 'skip'; skip.textContent = t('skip');
-  skip.addEventListener('pointerdown', (e) => { e.stopPropagation(); state.tut = 5; showTut(); save(); audio.play('click'); });
-  el.appendChild(skip);
+  el.innerHTML = `<b>${state.tut + 1}/5</b> · `;
+  el.appendChild(document.createTextNode(t('tut')[state.tut]));
 }
 function advanceTut() {
   state.tut++;
@@ -1130,7 +1093,7 @@ function syncPens(time, dt) {
   pens.forEach((pen, i) => {
     const unlocked = i < state.pens;
     pen.lock.visible = !unlocked;
-    pen.pad.material = mat(unlocked ? 0x8fde66 : 0xb9a98a);
+    pen.pad.material = mat(unlocked ? 0x9be37a : 0x8a8f99);
     pen.lockLabel.visible = !unlocked && i === state.pens;
     if (pen.lockLabel.visible) {
       const key = 'lock' + PEN_COST[i];
@@ -1397,17 +1360,7 @@ function update(dt, time) {
   camera.position.set(camTarget.x + Math.sin(camYaw) * cd, camTarget.y + ch, camTarget.z + Math.cos(camYaw) * cd);
   const sh = fx.shakeOffset();
   if (sh) camera.position.add(new THREE.Vector3(rand(-sh, sh), rand(-sh, sh), rand(-sh, sh)));
-  if (introT > 0) {
-    // ease from a high view over the first nests down to the normal chase camera
-    introT -= dt;
-    const k = Math.max(0, introT / INTRO_S), e = k * k * (3 - 2 * k);
-    const nest = nests[1] ? nests[1].pos : new THREE.Vector3(0, 0, 100);
-    const from = new THREE.Vector3(nest.x + 13, 12, nest.z + 24);
-    const look = new THREE.Vector3().lerpVectors(camTarget, nest.clone().setY(1), e);
-    camera.position.lerp(from, e);
-    camera.lookAt(look);
-    camera.fov = 60 + 8 * e; camera.updateProjectionMatrix();
-  } else camera.lookAt(camTarget);
+  camera.lookAt(camTarget);
   scene.userData.sky.position.copy(camera.position);
   sun.position.set(player.position.x + 15, 32, player.position.z - 10);
   sun.target.position.copy(player.position);
@@ -1418,8 +1371,6 @@ function update(dt, time) {
   if (saveTimer > 5) { saveTimer = 0; save(); }
 }
 
-const STEP = 1 / 120;
-let acc = 0;
 function loop() {
   const now = performance.now();
   const dt = Math.min(0.05, (now - last) / 1000);
@@ -1427,13 +1378,11 @@ function loop() {
   requestAnimationFrame(loop);
   if (paused) return;
   const time = now / 1000;
-  if (started) {
-    acc = Math.min(acc + dt, STEP * 6);
-    while (acc >= STEP) { acc -= STEP; update(STEP, time); }
-  } else {
+  if (started) update(dt, time);
+  else {
     const a = time * 0.12;
-    camera.position.set(Math.sin(a) * 17, 7.5, 6 + Math.cos(a) * 17);
-    camera.lookAt(0, 1.6, 4);
+    camera.position.set(Math.sin(a) * 24, 12, 4 + Math.cos(a) * 24);
+    camera.lookAt(0, 1, 0);
     syncPens(time, dt);
     for (const g of guards) g.mesh.userData.mixer?.update(dt);
     player?.userData.mixer?.update(dt);
@@ -1474,7 +1423,6 @@ $('btnPlay').addEventListener('click', () => {
   last = performance.now();
   platform.gameplayStart();
   camYaw = Math.PI;
-  if (state.tut === 0) { introT = INTRO_S; controlLock = Math.max(controlLock, 0.6); }
   showTut();
   if (pendingAway > 0) setTimeout(showAway, 300);
 });

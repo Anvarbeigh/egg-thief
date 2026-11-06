@@ -14,14 +14,6 @@ const NATURE_FILES = ['tree_default', 'tree_oak', 'tree_detailed', 'tree_pineRou
 const PROP_FILES = ['coin', 'cloud', 'flag'];
 
 const models = {};   // key -> {scene, animations}
-let rampTex = null;
-function ramp() {
-  if (!rampTex) {
-    rampTex = new THREE.DataTexture(new Uint8Array([120, 120, 120, 255, 205, 205, 205, 255, 255, 255, 255, 255]), 3, 1);
-    rampTex.minFilter = rampTex.magFilter = THREE.NearestFilter; rampTex.needsUpdate = true;
-  }
-  return rampTex;
-}
 
 export async function loadAll(onProgress) {
   const list = [
@@ -37,11 +29,11 @@ export async function loadAll(onProgress) {
       g.scene.traverse((o) => {
         if (o.isMesh) {
           o.castShadow = false; o.receiveShadow = true;
-          // the kit materials are PBR; a 3-band toon material is cheaper on phones and gives the cartoon look of the cover
+          // the kit materials are PBR; Lambert is cheaper on phones and reads the same in this style
           const m = o.material;
-          const toon = new THREE.MeshToonMaterial({ color: m.color.clone(), map: m.map, transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest, gradientMap: ramp() });
-          if (toon.map) toon.map.colorSpace = THREE.SRGBColorSpace;
-          o.material = toon;
+          const lam = new THREE.MeshLambertMaterial({ color: m.color.clone(), map: m.map, transparent: m.transparent, opacity: m.opacity, alphaTest: m.alphaTest });
+          if (lam.map) lam.map.colorSpace = THREE.SRGBColorSpace;
+          o.material = lam;
         }
       });
       models[key] = { scene: g.scene, animations: g.animations };
