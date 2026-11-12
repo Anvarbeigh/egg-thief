@@ -94,6 +94,10 @@
   .toast .i, .toast .cn { filter: drop-shadow(0 3px 0 var(--ol)); }
   @keyframes pop { 0% { transform: scale(.6); opacity: 0 } 10% { transform: scale(1.12); opacity: 1 } 18% { transform: scale(1) } 80% { opacity: 1 } 100% { opacity: 0; transform: translateY(-30px) } }
   #vignette { position: fixed; inset: 0; pointer-events: none; z-index: 1; background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(40,20,0,.22) 100%); }
+  #pausedHint { position: fixed; inset: 0; z-index: 50; display: none; place-items: center; background: rgba(16,24,39,.45); color: #fff; font-weight: 900; font-size: 28px; text-transform: uppercase; text-shadow: 2px 0 0 var(--ol), -2px 0 0 var(--ol), 0 2px 0 var(--ol), 0 -2px 0 var(--ol), 0 4px 0 var(--ol); cursor: pointer; }
+  #pausedHint.show { display: grid; }
+  #danger { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0; background: radial-gradient(ellipse at 50% 50%, rgba(255,40,30,0) 50%, rgba(255,40,30,.55) 100%); }
+  #danger.hot { animation: dangerPulse .5s ease-in-out infinite alternate; } @keyframes dangerPulse { to { filter: brightness(1.5); } }
   #speedlines { position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity .35s;
     background: repeating-conic-gradient(from 0deg at 50% 55%, rgba(255,255,255,.0) 0deg 5deg, rgba(255,255,255,.55) 5.4deg, rgba(255,255,255,0) 6deg 11deg);
     -webkit-mask-image: radial-gradient(ellipse at 50% 55%, transparent 52%, #000 85%); mask-image: radial-gradient(ellipse at 50% 55%, transparent 52%, #000 85%); animation: sl .25s steps(2) infinite; }
@@ -358,10 +362,10 @@
   }
   @media (max-width: 640px), (max-height: 480px) {
     /* phone HUD: coins and income share one plate, side buttons become square tiles */
-    .chip { font-size: 16px; min-height: 34px; padding: 1px 10px 1px 3px; } .chip .ic, .chip .ic .i { width: 26px; height: 26px; }
-    #coinChip { font-size: 20px; min-height: 40px; } #coinChip > .ic, #coinChip > .ic .i { width: 38px; height: 38px; }
+    .chip { font-size: 19px; min-height: 36px; padding: 1px 10px 1px 3px; text-shadow: 2px 0 0 var(--ol), -2px 0 0 var(--ol), 0 2px 0 var(--ol), 0 -2px 0 var(--ol), 1.5px 1.5px 0 var(--ol), -1.5px 1.5px 0 var(--ol), 1.5px -1.5px 0 var(--ol), -1.5px -1.5px 0 var(--ol), 0 3px 0 var(--ol); } .chip .ic, .chip .ic .i { width: 26px; height: 26px; }
+    #coinChip { font-size: 23px; min-height: 42px; } #coinChip > .ic, #coinChip > .ic .i { width: 38px; height: 38px; }
     #incomeChip { display: none !important; }
-    .inc:not(.hidden) { display: flex; align-items: center; gap: 3px; font-size: 15px; color: #fff; margin-left: 4px; padding-left: 8px; border-left: 2px solid rgba(74,42,16,.5); }
+    .inc:not(.hidden) { display: flex; align-items: center; gap: 3px; font-size: 17px; color: #fff; margin-left: 4px; padding-left: 8px; border-left: 2px solid rgba(74,42,16,.5); }
     #spdNext .i { width: 26px; height: 26px; } #boostChip .ic, #boostChip .ic .i { width: 32px; height: 28px; }
     .sbtn { width: 66px; height: 66px; flex-direction: column; justify-content: center; gap: 0; padding: 2px; border-radius: 16px; }
     .sbtn .i { width: 40px; height: 40px; } .sbtn span:not(.i) { font-size: 11px; text-align: center; max-width: 62px; }
@@ -371,14 +375,14 @@
             top: calc(140px + env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); right: calc(84px + env(safe-area-inset-right)); }
     #msgs > * { position: static; transform: none; max-width: none; width: auto; text-align: center; }
     #msgs > #carry { position: absolute; left: 50%; transform: translateX(-50%); width: max-content; top: max(64px, calc(30vh - 140px - env(safe-area-inset-top))); }   /* #msgs starts 140px down; above the egg, clear of the pickup toast */
-    #tut { font-size: 18px; padding: 4px 12px 4px 6px; justify-content: center; white-space: normal; } #tut .step { font-size: 14px; }
-    #zonehint { font-size: 13px; white-space: normal; padding: 4px 10px; }
+    #tut { font-size: 21px; padding: 5px 14px 5px 6px; justify-content: center; white-space: normal; color: #fff; text-shadow: 2px 0 0 var(--ol), -2px 0 0 var(--ol), 0 2px 0 var(--ol), 0 -2px 0 var(--ol), 1.5px 1.5px 0 var(--ol), -1.5px 1.5px 0 var(--ol), 1.5px -1.5px 0 var(--ol), -1.5px -1.5px 0 var(--ol), 0 3px 0 var(--ol); } #tut .step { font-size: 16px; text-shadow: none; }
+    #zonehint { font-size: 17px; white-space: normal; padding: 5px 12px; text-shadow: 2px 0 0 var(--ol), -2px 0 0 var(--ol), 0 2px 0 var(--ol), 0 -2px 0 var(--ol), 1.5px 1.5px 0 var(--ol), -1.5px 1.5px 0 var(--ol), 1.5px -1.5px 0 var(--ol), -1.5px -1.5px 0 var(--ol), 0 3px 0 var(--ol); }
     #zonehint:not(.show) { display: none; }
-    #carry { font-size: 18px; padding: 4px 16px 4px 6px; } #carry .i { width: 30px; height: 30px; }
+    #carry { font-size: 21px; padding: 5px 16px 5px 6px; text-shadow: 2px 0 0 var(--ol), -2px 0 0 var(--ol), 0 2px 0 var(--ol), 0 -2px 0 var(--ol), 1.5px 1.5px 0 var(--ol), -1.5px 1.5px 0 var(--ol), 1.5px -1.5px 0 var(--ol), -1.5px -1.5px 0 var(--ol), 0 3px 0 var(--ol); } #carry .i { width: 32px; height: 32px; }
     #tut:not(.hidden) ~ #carry { display: none !important; }
     #stats { gap: 6px; }
     #toasts { top: 58%; }
-    .toast { font-size: 22px; white-space: normal; text-align: center; max-width: calc(100vw - 32px); }
+    .toast { font-size: 27px; white-space: normal; text-align: center; max-width: calc(100vw - 32px); }
     #side { gap: 8px; }
     #jumpbtn { width: 88px; height: 88px; } #jumpbtn svg { width: 48px; height: 48px; }
   }
@@ -408,6 +412,8 @@
 <canvas id="game"></canvas>
 <div id="vignette"></div>
 <div id="speedlines"></div>
+<div id="danger"></div>
+<div id="pausedHint" data-t="pausedTap"></div>
 <div id="flash"></div>
 <div id="fade"></div>
 

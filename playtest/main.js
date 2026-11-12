@@ -50,7 +50,7 @@ const state = {
   coins: 0, bank: 0, speedLvl: 0, incomeLvl: 0, pens: START_PENS,
   slots: Array(MAX_PENS).fill(null), // null | {kind:'egg'|'pet', zone, rarity, species, mult, golden, hatchAt}
   best: 0, lastSeen: Date.now(), boostUntil: 0,
-  rebirths: 0, index: {}, tut: 0, goal: 0, goldenDone: 0, giftDay: '', giftStreak: 0, sound: true, music: true, shake: false,
+  rebirths: 0, index: {}, tut: 0, goal: 0, goldenDone: 0, giftDay: '', giftStreak: 0, sound: true, music: true, shake: false, caughtN: 0,
 };
 let pendingAway = 0;
 
@@ -605,7 +605,7 @@ function buildZone(zone, zi) {
     ball.position.set(side * (ROAD_HALF - 0.6), 10.2, zone.z0); scene.add(ball);
   }
   const beam = box(ROAD_HALF * 2 - 1, 1.3, 0.8, zone.arch); beam.position.set(0, 9, zone.z0); scene.add(beam); camBlockers.push(beam);
-  const title = makeLabel(`${zi + 1}. ${t('zone')[zi].toUpperCase()}`, '#fff', 512, 96, 10); title.position.set(0, 11.4, zone.z0); scene.add(title); zone.titleLabel = title;
+  const title = makeLabel(`${zi + 1}. ${t('zone')[zi].toUpperCase()}`, '#fff', 512, 96, isTouch ? 14 : 10); title.position.set(0, 11.4, zone.z0); scene.add(title); zone.titleLabel = title;
 
   decorate(zone);
 
@@ -790,12 +790,15 @@ function buildGuide() {
 const keys = {};
 let camYaw = Math.PI, camPitch = 0.17, camDist = 9;
 // chase camera: while a bird chases you, the view swings a little to one side so the bird behind shows up in frame
-let camOffset = 0, camOffsetTarget = 0, chaseSide = 0, camLift = 0, camDistS = 0;
-const camFollow = new THREE.Vector3(); let camFollowInit = false;
+let camOffset = 0, camOffsetTarget = 0, chaseSide = 0, camLift = 0, camDistS = 0, dangerK = 0, camOffsetV = 0, camLiftV = 0, liftHold = 0;
+// critically damped spring: no velocity jumps when a target changes (an exponential ease starts at full speed)
+const spring = (x, v, target, k, dt) => { v += ((target - x) * k * k - 2 * k * v) * dt; return [x + v * dt, v]; };
+const camFollow = new THREE.Vector3(), camLookOff = new THREE.Vector3(); let camFollowInit = false;
 const camLook = new THREE.Vector3();
 const occluders = [];    // big landmarks (barn, windmill, cabin...): fade out while they sit between the camera and the player
 const camBlockers = [];   // gate posts and beams: the camera slides in front of them instead of through
-let camYawTarget = null;
+let camYawTarget = null, camYawVel = 0;
+const CAM_YAW_MAX = 1.4, CAM_YAW_ACC = 3;   // rad/s (80°/s), rad/s²
 let moveYaw = null;   // while set, held keys keep their direction even as the camera swings round
 const moveIn = { x: 0, z: 0 };   // the input that was held when moveYaw latched: a new direction releases it
 let jumpQueued = false;
@@ -814,7 +817,7 @@ window.addEventListener('keyup', (e) => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 let drag = null;
-canvas.addEventListener('pointerdown', (e) => { camYawTarget = null; moveYaw = null; drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ } audio.unlock(); });
+canvas.addEventListener('pointerdown', (e) => { camYawTarget = null; camYawVel = 0; moveYaw = null; drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ } audio.unlock(); });
 canvas.addEventListener('pointermove', (e) => {
   if (!drag || drag.id !== e.pointerId) return;
   camYaw -= (e.clientX - drag.x) * 0.006;
@@ -1479,6 +1482,7 @@ function caught() {
   const lostGolden = carrying?.golden && !state.goldenDone;
   dropCarry();
   if (lostGolden) setTimeout(spawnGolden, 1200);   // the golden egg goes back to its nest: the goal can't get lost
+  state.caughtN = (state.caughtN || 0) + 1;
   audio.play('caught'); flash(); fx.shake(0.6);
   fx.burst(player.position.clone().setY(1.5), 0xffffff, 26, 6);
   toast(t('caught') + ' 😵', '#ff7070');
@@ -1839,7 +1843,12 @@ function update(dt, time) {
     else if (g.state === 'alert') m.userData.play?.('emote-no');
     else m.userData.play?.(dest ? 'walk' : 'idle');
     m.userData.mixer?.update(dt);
-    if (g.state === 'chase' && carrying && controlLock <= 0 && m.position.distanceTo(player.position) < 1.2 && player.position.y < 1.5) { caught(); break; }
+    // build-up: a bird has to be on your heels (warning shown) for a moment before it can grab the egg;
+    // the very first catch of the game gets the longest lead-in
+    const gd = m.position.distanceTo(player.position);
+    g.closeT = g.state === 'chase' && carrying && gd < 6 ? (g.closeT || 0) + dt : Math.max(0, (g.closeT || 0) - dt * 2);
+    const needClose = state.caughtN ? 0.5 : 1.4;
+    if (g.state === 'chase' && carrying && controlLock <= 0 && gd < 1.2 && g.closeT >= needClose && player.position.y < 1.5) { caught(); break; }
   }
 
   separateGuards();
@@ -1908,8 +1917,13 @@ function update(dt, time) {
   // camera: follows behind, auto-turns home while carrying, small FOV kick while running with an egg
   if (camYawTarget !== null) {
     const d = Math.atan2(Math.sin(camYawTarget - camYaw), Math.cos(camYawTarget - camYaw));
-    camYaw += d * Math.min(1, dt * 9);
-    if (Math.abs(d) < 0.01) camYawTarget = null;
+    // auto-turns (to face home after a grab, back to the zones after leaving base) are slow and eased:
+    // at most 90°/s, so the view never whips around the player (motion sickness)
+    const want = Math.max(-CAM_YAW_MAX, Math.min(CAM_YAW_MAX, d * 1.8));
+    camYawVel += Math.max(-CAM_YAW_ACC * dt, Math.min(CAM_YAW_ACC * dt, (want - camYawVel) * Math.min(1, dt * 6)));   // gentle start and stop
+    let step = camYawVel * dt; if (Math.sign(step) === Math.sign(d) && Math.abs(step) > Math.abs(d)) step = d;   // no overshoot
+    camYaw += step;
+    if (Math.abs(d) < 0.01) { camYawTarget = null; camYawVel = 0; }
   }
   const portrait = camera.aspect < 1;
   // nearest chasing bird (if any) decides the side the camera swings to
@@ -1922,7 +1936,7 @@ function update(dt, time) {
     }
     camOffsetTarget = 0.55 * chaseSide;
   } else { camOffsetTarget = 0; if (Math.abs(camOffset) < 0.02) chaseSide = 0; }
-  camOffset += (camOffsetTarget - camOffset) * Math.min(1, dt * 2.2);
+  [camOffset, camOffsetV] = spring(camOffset, camOffsetV, camOffsetTarget, 2.6, Math.min(dt, 0.05));
   const fov = (portrait ? 62 : 52) + (carrying && moving ? 3 : 0);
   if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 1.5); camera.updateProjectionMatrix(); }
   // smooth follow: a light lag on the ground plane, a softer one on height (hops and jumps don't jolt the view);
@@ -1946,7 +1960,8 @@ function update(dt, time) {
     const along = (bx * ax + bz * az) / al;
     if (along > 0.6 && along < al + 0.5 && Math.abs(bx * az - bz * ax) / al < 1.5) { birdBlock = true; break; }
   }
-  camLift += ((birdBlock ? 0.38 : 0) - camLift) * Math.min(1, dt * (birdBlock ? 6 : 1.5));
+  liftHold = birdBlock ? 0.9 : Math.max(0, liftHold - dt);   // hold the raised view a moment: no up/down flicker
+  [camLift, camLiftV] = spring(camLift, camLiftV, liftHold > 0 ? 0.38 : 0, 3, Math.min(dt, 0.05));
   const yawV = camYaw + camOffset, pitchV = camPitch + 0.06 * chaseK + camLift;
   camDir.set(Math.sin(yawV) * Math.cos(pitchV), Math.sin(pitchV), Math.cos(yawV) * Math.cos(pitchV));
   camRay.set(camTarget, camDir); camRay.far = dist;
@@ -1960,10 +1975,20 @@ function update(dt, time) {
   const sh = state.shake ? fx.shakeOffset() * 0.5 : 0;
   if (sh) camera.position.add(tmp.set(rand(-sh, sh), rand(-sh, sh) * 0.5, rand(-sh, sh)));
   // look slightly toward the chasing bird so both stay in frame
-  camLook.copy(camTarget);
-  if (chaser) camLook.lerp(tmp.copy(chaser.mesh.position).setY(1.6), 0.22 * chaseK);
+  // (smoothed, so switching between two chasing birds never jerks the view)
+  if (chaser) tmp.copy(chaser.mesh.position).setY(1.6).sub(camTarget).multiplyScalar(0.22 * chaseK); else tmp.set(0, 0, 0);
+  camLookOff.lerp(tmp, Math.min(1, dt * 3));
+  camLook.copy(camTarget).add(camLookOff);
   camera.lookAt(camLook);
   $('speedlines').style.opacity = carrying && moving ? (chaser ? 0.85 : 0.5) : 0;
+  const dk = chaser ? Math.max(0, Math.min(1, (8 - cd) / 6.5)) : 0;
+  dangerK += (dk - dangerK) * Math.min(1, dt * 6);
+  $('danger').style.opacity = dangerK.toFixed(3); $('danger').classList.toggle('hot', dangerK > 0.6);
+  if (chaser && carrying && !carrying.warned && cd < 8) {
+    carrying.warned = true;
+    audio.blip([988, 740, 988, 740], 0.09, 0.06);
+    toast(t('behind'), '#ff8a7a');
+  }
   if (baseSign) baseSign.visible = camera.position.z > baseSign.position.z + 5 && camera.position.distanceTo(baseSign.position) > 12;   // never fill the screen with the sign
   fadeOccluders(dt);
   scene.userData.sky.position.copy(camera.position);
@@ -2081,11 +2106,27 @@ function awayEnd() {
 if (platform.ownPauseEvents) {
   platform.onPause = () => { awayStart(); pause(); };
   platform.onResume = () => { awayEnd(); resume(); };
-} else document.addEventListener('visibilitychange', () => {
-  if (document.hidden) { awayStart(); audio.suspend(); return; }
-  audio.resume();
-  awayEnd();
-});
+} else {
+  // Silence when not active: tab hidden, app backgrounded or screen locked, window unfocused, page closing.
+  // All audio is suspended AND the game pauses; both come back when the player returns.
+  // focus is tracked by events, not document.hasFocus(): an unfocused portal iframe (or iOS, where a tap may not
+  // focus the frame) must never leave the game stuck paused. Only a real blur pauses; any tap/key/focus resumes.
+  let inactive = false, focused = true, pageGone = false;
+  const setInactive = (v) => {
+    if (v === inactive) return;
+    inactive = v;
+    if (v) { awayStart(); pause(); } else { awayEnd(); resume(); }
+    $('pausedHint').classList.toggle('show', v && started && !document.hidden);
+  };
+  const checkActive = () => setInactive(document.hidden || !focused || pageGone);
+  document.addEventListener('visibilitychange', checkActive);
+  window.addEventListener('blur', () => { focused = false; checkActive(); });
+  window.addEventListener('focus', () => { focused = true; checkActive(); });
+  window.addEventListener('pageshow', () => { pageGone = false; checkActive(); });
+  window.addEventListener('pagehide', () => { pageGone = true; checkActive(); });
+  for (const ev of ['pointerdown', 'keydown', 'touchstart']) document.addEventListener(ev, () => { if (!focused) { focused = true; checkActive(); } }, true);
+  if (document.hidden) setInactive(true);   // opened in a background tab: stay silent until shown
+}
 window.addEventListener('pagehide', flushSave);
 
 $('btnPlay').addEventListener('click', () => {
@@ -2145,7 +2186,7 @@ let simT = 0;
 if (platform.name === 'local' || (new URLSearchParams(location.search).has('debug') && /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) window.__game = {
   state, guards, nests, ZONES, save, keys, platform, renderer, scene, camera, fx,
   get player() { return player; },
-  setCam(yaw, pitch, dist) { camYaw = yaw; camPitch = pitch; camDist = dist; camYawTarget = null; },
+  setCam(yaw, pitch, dist) { camYaw = yaw; camPitch = pitch; camDist = dist; camYawTarget = null; camYawVel = 0; },
   step(n, dt = 1 / 60) { started = true; for (let i = 0; i < n; i++) { simT += dt; update(dt, simT); fx.update(dt); if (windBlades) windBlades.rotation.z += dt * 0.8; if (dressBase.blades) dressBase.blades.rotation.z += dt * 0.8; } renderer.render(scene, camera); },
   freeze(v = true) { loop.frozen = v; },
   carrying: () => carrying, dropCarry: () => dropCarry(),
