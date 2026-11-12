@@ -1205,8 +1205,11 @@ function reveal(p, isNew, bonus) {
   el.querySelector('.rinc').textContent = `+${fmtRate(petIncome(p))} 🪙${t('perSec')}` + (bonus ? `  ·  ${t('indexBonus', { n: fmt(bonus) })}` : '');
   coinify(el.querySelector('.rinc'));
   el.querySelector('.rnew').classList.toggle('hidden', !isNew);
+  // the big moment for new pets, rare+ and golden ones; a repeat find is a short, light card (back to running fast)
+  const big = isNew || p.rarity >= 3 || p.golden;
+  el.classList.toggle('quick', !big);
   el.classList.remove('open'); void el.offsetWidth; el.classList.add('open');
-  revealTimer = 2.8;
+  revealTimer = big ? 2.8 : 1.3;
 }
 $('reveal').addEventListener('pointerdown', () => { $('reveal').classList.remove('open'); revealTimer = 0; });
 

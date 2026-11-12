@@ -153,6 +153,7 @@
   /* hatch reveal */
   #reveal { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 25; pointer-events: none; background: rgba(8,12,30,.35); }
   #reveal.open { display: flex; }
+  #reveal.quick { background: rgba(8,12,30,.12); } #reveal.quick .rays { opacity: .18; } #reveal.quick .card { transform: scale(.82); }
   #reveal .rays { position: absolute; width: 640px; height: 640px; border-radius: 50%; background: repeating-conic-gradient(var(--rc) 0 10deg, transparent 10deg 20deg); opacity: .35; animation: spin 8s linear infinite;
                   mask: radial-gradient(circle, #000 20%, transparent 70%); -webkit-mask: radial-gradient(circle, #000 20%, transparent 70%); }
   @keyframes spin { to { transform: rotate(360deg) } }
