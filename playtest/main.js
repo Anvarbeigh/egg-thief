@@ -50,7 +50,7 @@ const state = {
   coins: 0, bank: 0, speedLvl: 0, incomeLvl: 0, pens: START_PENS,
   slots: Array(MAX_PENS).fill(null), // null | {kind:'egg'|'pet', zone, rarity, species, mult, golden, hatchAt}
   best: 0, lastSeen: Date.now(), boostUntil: 0,
-  rebirths: 0, index: {}, tut: 0, goal: 0, goldenDone: 0, giftDay: '', giftStreak: 0, sound: true, music: true,
+  rebirths: 0, index: {}, tut: 0, goal: 0, goldenDone: 0, giftDay: '', giftStreak: 0, sound: true, music: true, shake: false,
 };
 let pendingAway = 0;
 
@@ -240,11 +240,17 @@ const obstacles = []; // {minX,maxX,minZ,maxZ,h}
 const WORLD_END = ZONES[ZONES.length - 1].z1 + 14;
 const rand = (a, b) => a + Math.random() * (b - a);
 
-function groundPlane(z0, z1, color, x0, x1, tex, rep = 6, laneTile = false) {
+function groundPlane(z0, z1, color, x0, x1, tex, rep = 6, laneTile = false, offset = 0, fixedV = false) {
   const w = x1 - x0, d = z1 - z0;
   const material = new THREE.MeshLambertMaterial({ color: tex ? 0xffffff : color, map: tex ? tex.clone() : null });
-  if (material.map) { material.map.needsUpdate = true; material.map.repeat.set(laneTile ? 1 : w / rep, d / rep); }
-  if (tex?.userData.glow) { material.emissive = new THREE.Color(0xffffff); material.emissiveMap = tex.userData.glow.clone(); material.emissiveMap.needsUpdate = true; material.emissiveMap.repeat.copy(material.map.repeat); }
+  if (material.map) {
+    material.map.needsUpdate = true;
+    // lane tiles are anchored to world z (v = z / tile), so the painted lane runs on unbroken across every plane edge
+    if (fixedV) material.map.repeat.set(laneTile ? 1 : w / rep, 1);
+    else { material.map.repeat.set(laneTile ? 1 : w / rep, d / rep); if (laneTile) material.map.offset.y = -z1 / rep; }
+  }
+  if (offset) { material.polygonOffset = true; material.polygonOffsetFactor = offset; material.polygonOffsetUnits = offset; }
+  if (tex?.userData.glow) { material.emissive = new THREE.Color(0xffffff); material.emissiveMap = tex.userData.glow.clone(); material.emissiveMap.needsUpdate = true; material.emissiveMap.repeat.copy(material.map.repeat); material.emissiveMap.offset.copy(material.map.offset); }
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), material);
   m.rotation.x = -Math.PI / 2;
   m.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2);
@@ -267,17 +273,26 @@ function fenceLine(list, x0, z0, x1, z1, s) {
 
 function buildWorld() {
   // base, neutral paths and zones: road tiles inside, scenery colour outside
-  const road = (z0, z1, kind) => groundPlane(z0, z1, 0, -ROAD_HALF - 1, ROAD_HALF + 1, groundTexture(kind, isTouch ? 512 : 1024), ROAD_HALF * 2 + 2, true);
-  const out = (z0, z1, color) => {
-    groundPlane(z0, z1, 0, -150, -ROAD_HALF - 1, colorNoise(color), 10);
-    groundPlane(z0, z1, 0, ROAD_HALF + 1, 150, colorNoise(color), 10);
+  // Biome planes, and between two biomes a transition strip that blends one into the other (same tile scale and
+  // lane, painted from both neighbours' own textures). Strips and the side fields overlap their neighbours a little,
+  // so no hairline gap opens at a seam on low-precision phone GPUs; the strips draw on top in the overlap.
+  const TILE = ROAD_HALF * 2 + 2, OV = 0.6, size = isTouch ? 512 : 1024;
+  const road = (z0, z1, kind) => groundPlane(z0, z1, 0, -ROAD_HALF - 1, ROAD_HALF + 1, groundTexture(kind, size), TILE, true);
+  const out = (z0, z1, color, tex) => {
+    const inner = ROAD_HALF + 1 - (tex ? 0 : OV);   // plain fields tuck under the road edge; strip fields stop at it
+    groundPlane(z0, z1, 0, -150, -inner, tex || colorNoise(color), 10, false, tex ? -1 : 1, !!tex);
+    groundPlane(z0, z1, 0, inner, 150, tex || colorNoise(color), 10, false, tex ? -1 : 1, !!tex);
+  };
+  const seam = (z0, z1, kindA, kindB, colA, colB) => {
+    groundPlane(z0 - OV, z1 + OV, 0, -ROAD_HALF - 1, ROAD_HALF + 1, blendTexture(groundTexture(kindA, size), groundTexture(kindB, size), z0 - OV, z1 + OV, TILE), TILE, true, -1, true);
+    out(z0 - OV, z1 + OV, 0, blendFields(colA, colB, z0 - OV, z1 + OV, z0, z1));
   };
   road(-40, 26, 'base'); out(-40, 26, 0x9ed66f);
-  let prev = 26;
+  let prev = 26, prevKind = 'base', prevCol = 0x9ed66f;
   for (const z of ZONES) {
-    road(prev, z.z0, 'path'); out(prev, z.z0, 0x9ed66f);
+    seam(prev, z.z0, prevKind, z.decor, prevCol, z.edge);
     road(z.z0, z.z1, z.decor); out(z.z0, z.z1, z.edge);
-    prev = z.z1;
+    prev = z.z1; prevKind = z.decor; prevCol = z.edge;
   }
   road(prev, WORLD_END + 40, 'volcano'); out(prev, WORLD_END + 40, 0x6b4842);
 
@@ -291,6 +306,66 @@ function buildWorld() {
   buildBase();
   ZONES.forEach((z, i) => buildZone(z, i));
   buildClouds();
+}
+// Transition strip texture for the road between z0 and z1: rows come from texture A (before) and B (after) at the
+// same world phase as on their own planes, mixed through a soft, patchy mask (grass patches running into snow, etc).
+function blendTexture(A, B, z0, z1, tile) {
+  const size = A.image.width, H = Math.max(8, Math.round(size * (z1 - z0) / tile));
+  const rowAt = (((z0 / tile) % 1) + 1) % 1 * size;
+  const strip = (src) => {   // the H rows of a tiled canvas starting at world z0, wrapping around
+    const c = document.createElement('canvas'); c.width = size; c.height = H;
+    const g = c.getContext('2d');
+    for (let y = 0; y < H;) { const sy = (rowAt + y) % size, n = Math.min(H - y, size - sy); g.drawImage(src, 0, sy, size, n, 0, y, size, n); y += n; }
+    return c;
+  };
+  const mask = (() => {
+    const c = document.createElement('canvas'); c.width = size; c.height = H;
+    const g = c.getContext('2d');
+    const grd = g.createLinearGradient(0, 0, 0, H); grd.addColorStop(0.2, 'rgba(0,0,0,0)'); grd.addColorStop(0.8, 'rgba(0,0,0,1)');
+    g.fillStyle = grd; g.fillRect(0, 0, size, H);
+    for (let i = 0; i < 1400; i++) {
+      const y = Math.random() * H, x = Math.random() * size, r = (14 + Math.random() * 40) * size / 1024, k = y / H;
+      const p = Math.min(1, Math.max(0, (k - 0.15) / 0.7));
+      g.globalCompositeOperation = Math.random() < p ? 'source-over' : 'destination-out';
+      const rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, 'rgba(0,0,0,.85)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+    // the strip ends are exactly A and exactly B
+    g.clearRect(0, 0, size, Math.ceil(H * 0.08)); g.fillRect(0, Math.floor(H * 0.92), size, H);
+    return c;
+  })();
+  const mix = (a, b) => {
+    const c = strip(a), top = strip(b), g = c.getContext('2d'), tg = top.getContext('2d');
+    tg.globalCompositeOperation = 'destination-in'; tg.drawImage(mask, 0, 0);
+    g.drawImage(top, 0, 0);
+    return c;
+  };
+  // canvas row 0 is world z0 (flipY maps the top row to v = 1, the plane's z0 edge)
+  const tx = new THREE.CanvasTexture(mix(A.image, B.image));
+  tx.wrapS = THREE.ClampToEdgeWrapping; tx.wrapT = THREE.ClampToEdgeWrapping; tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = A.anisotropy;
+  const gA = A.userData.glow?.image, gB = B.userData.glow?.image;
+  if (gA || gB) {
+    const black = document.createElement('canvas'); black.width = black.height = size; const bg = black.getContext('2d'); bg.fillStyle = '#000'; bg.fillRect(0, 0, size, size);
+    const glow = new THREE.CanvasTexture(mix(gA || black, gB || black)); glow.wrapT = THREE.ClampToEdgeWrapping; glow.colorSpace = THREE.SRGBColorSpace;
+    tx.userData.glow = glow;
+  }
+  return tx;
+}
+// side fields of a transition strip: colour A fading into colour B, with the same speckle as the plain fields
+function blendFields(colA, colB, z0, z1, za, zb) {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+  const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 256);
+  grd.addColorStop(Math.max(0, (za - z0) / (z1 - z0) + 0.15), hexCss(colA)); grd.addColorStop(Math.min(1, (zb - z0) / (z1 - z0) - 0.15), hexCss(colB));
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 256);
+  for (let i = 0; i < 520; i++) {
+    g.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,.08)' : 'rgba(255,255,255,.06)';
+    g.beginPath(); g.arc(Math.random() * 128, Math.random() * 256, 2 + Math.random() * 6, 0, Math.PI * 2); g.fill();
+  }
+  const tx = new THREE.CanvasTexture(c);
+  tx.wrapS = THREE.RepeatWrapping; tx.wrapT = THREE.ClampToEdgeWrapping; tx.colorSpace = THREE.SRGBColorSpace;
+  return tx;
 }
 const noiseCache = new Map();
 function colorNoise(color) {
@@ -463,7 +538,15 @@ let penPadGeo = null;
 function buildBase() {
   const sign = makeLabel(t('yourBase'), '#ffd84a', 512, 96, 6);
   sign.position.set(0, 4.6, -27); scene.add(sign); baseSign = sign;
-  const line = box(ROAD_HALF * 2, 0.06, 0.6, 0x3fcf5e, { emissive: 0x0c4a18 }); line.position.set(0, 0.03, BASE_LIMIT_Z); scene.add(line);
+  // safe-zone edge: a painted dashed line on the ground (a raised neon bar read as a rendering glitch)
+  {
+    const c = document.createElement('canvas'); c.width = 1024; c.height = 32; const g = c.getContext('2d');
+    g.fillStyle = 'rgba(255,246,214,.9)';
+    for (let i = 0; i < 18; i++) { const x = i * 1024 / 18 + 10; g.beginPath(); g.roundRect(x, 6, 1024 / 18 - 20, 20, 10); g.fill(); }
+    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_HALF * 2 - 2, 0.55), new THREE.MeshLambertMaterial({ map: tx, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+    line.rotation.x = -Math.PI / 2; line.position.set(0, 0.01, BASE_LIMIT_Z); line.receiveShadow = true; scene.add(line);
+  }
 
   const penFences = [];
   for (let i = 0; i < MAX_PENS; i++) {
@@ -707,7 +790,8 @@ function buildGuide() {
 const keys = {};
 let camYaw = Math.PI, camPitch = 0.17, camDist = 9;
 // chase camera: while a bird chases you, the view swings a little to one side so the bird behind shows up in frame
-let camOffset = 0, camOffsetTarget = 0, chaseSide = 0, camBob = 0, camLift = 0;
+let camOffset = 0, camOffsetTarget = 0, chaseSide = 0, camLift = 0, camDistS = 0;
+const camFollow = new THREE.Vector3(); let camFollowInit = false;
 const camLook = new THREE.Vector3();
 const occluders = [];    // big landmarks (barn, windmill, cabin...): fade out while they sit between the camera and the player
 const camBlockers = [];   // gate posts and beams: the camera slides in front of them instead of through
@@ -1069,8 +1153,8 @@ function renderGift() {
 function renderSettings() {
   const b = $('settingsBody');
   b.innerHTML = '';
-  for (const [key, label] of [['sound', t('sound')], ['music', t('music')]]) {
-    const r = row(icon(key), label, '');
+  for (const [key, label, ic] of [['sound', t('sound'), 'sound'], ['music', t('music'), 'music'], ['shake', t('shake'), 'cam']]) {
+    const r = row(icon(ic), label, '');
     r.appendChild(button(state[key] ? t('on') : t('off'), state[key] ? 'green' : 'red', () => {
       state[key] = !state[key];
       audio.setSound(state.sound); audio.setMusic(state.music);
@@ -1839,9 +1923,17 @@ function update(dt, time) {
     camOffsetTarget = 0.55 * chaseSide;
   } else { camOffsetTarget = 0; if (Math.abs(camOffset) < 0.02) chaseSide = 0; }
   camOffset += (camOffsetTarget - camOffset) * Math.min(1, dt * 2.2);
-  const fov = (portrait ? 62 : 52) + (carrying && moving ? 7 : moving ? 2 : 0);
-  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 4); camera.updateProjectionMatrix(); }
-  camTarget.copy(player.position); camTarget.y += 2.2;
+  const fov = (portrait ? 62 : 52) + (carrying && moving ? 3 : 0);
+  if (Math.abs(camera.fov - fov) > 0.05) { camera.fov += (fov - camera.fov) * Math.min(1, dt * 1.5); camera.updateProjectionMatrix(); }
+  // smooth follow: a light lag on the ground plane, a softer one on height (hops and jumps don't jolt the view);
+  // snaps after teleports (caught, rebirth, debug moves)
+  if (!camFollowInit || camFollow.distanceTo(player.position) > 8) { camFollow.copy(player.position); camFollowInit = true; }
+  else {
+    const kxz = 1 - Math.exp(-dt * 14), ky = 1 - Math.exp(-dt * 4);
+    camFollow.x += (player.position.x - camFollow.x) * kxz; camFollow.z += (player.position.z - camFollow.z) * kxz;
+    camFollow.y += (player.position.y - camFollow.y) * ky;
+  }
+  camTarget.copy(camFollow); camTarget.y += 2.2;
   const chaseK = Math.abs(camOffset) / 0.55;
   let dist = camDist * (portrait ? 1.15 : 1) * (1 + 0.12 * chaseK);
   // a bird between the camera and the ninja: the camera rises and looks over it (never lose sight of the player)
@@ -1857,15 +1949,16 @@ function update(dt, time) {
   camLift += ((birdBlock ? 0.38 : 0) - camLift) * Math.min(1, dt * (birdBlock ? 6 : 1.5));
   const yawV = camYaw + camOffset, pitchV = camPitch + 0.06 * chaseK + camLift;
   camDir.set(Math.sin(yawV) * Math.cos(pitchV), Math.sin(pitchV), Math.cos(yawV) * Math.cos(pitchV));
-  // run feedback: a small step bob while running on the ground
-  camBob = moving && onGround ? camBob + dt * playerSpeed() * 1.6 : 0;
   camRay.set(camTarget, camDir); camRay.far = dist;
   const hit = camRay.intersectObjects(camBlockers, false)[0];
   if (hit) dist = Math.max(2.5, hit.distance - 0.6);
-  camera.position.copy(camTarget).addScaledVector(camDir, dist);
-  const sh = fx.shakeOffset();
-  if (sh) camera.position.add(new THREE.Vector3(rand(-sh, sh), rand(-sh, sh), rand(-sh, sh)));
-  if (camBob) camera.position.y += Math.abs(Math.sin(camBob)) * 0.07;
+  // no popping when a post or beam crosses the view: pull in quickly, ease back out slowly
+  if (!camDistS) camDistS = dist;
+  camDistS += (dist - camDistS) * Math.min(1, dt * (dist < camDistS ? 10 : 2.5));
+  camera.position.copy(camTarget).addScaledVector(camDir, camDistS);
+  // shake only for hits/catches, and only if the player turned it on (Settings > Camera shake, off by default)
+  const sh = state.shake ? fx.shakeOffset() * 0.5 : 0;
+  if (sh) camera.position.add(tmp.set(rand(-sh, sh), rand(-sh, sh) * 0.5, rand(-sh, sh)));
   // look slightly toward the chasing bird so both stay in frame
   camLook.copy(camTarget);
   if (chaser) camLook.lerp(tmp.copy(chaser.mesh.position).setY(1.6), 0.22 * chaseK);

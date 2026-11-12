@@ -68,7 +68,7 @@ const STR = {
     giftClaim: 'Claim {n}',
     giftWait: 'Next gift in {t}',
     giftGot: 'Daily gift: +{n}',
-    settings: 'Settings', sound: 'Sound', music: 'Music', on: 'On', off: 'Off',
+    settings: 'Settings', sound: 'Sound', music: 'Music', shake: 'Camera shake', on: 'On', off: 'Off',
     tut: [
       'Steal an egg!',
       'Bring it home!',
@@ -158,7 +158,7 @@ const STR = {
     giftClaim: 'Забрать {n}',
     giftWait: 'Следующий подарок через {t}',
     giftGot: 'Подарок дня: +{n}',
-    settings: 'Настройки', sound: 'Звуки', music: 'Музыка', on: 'Вкл', off: 'Выкл',
+    settings: 'Настройки', sound: 'Звуки', music: 'Музыка', shake: 'Тряска камеры', on: 'Вкл', off: 'Выкл',
     tut: [
       'Укради яйцо!',
       'Неси домой!',

@@ -25,6 +25,7 @@ export const ICONS = {
   moon: s(`<path d="M15.6 3.6A8.4 8.4 0 1 0 20.4 15 6.6 6.6 0 0 1 15.6 3.6z" fill="#FFE08A"/>`),
   caught: s(`<circle cx="12" cy="12" r="9" fill="#FFC94D"/><path d="M7.4 8.4l3 3M10.4 8.4l-3 3M13.6 8.4l3 3M16.6 8.4l-3 3" stroke-width="1.6"/><ellipse cx="12" cy="16.2" rx="2.6" ry="1.8" fill="#1D2942"/>`),
   boost: s(`<path d="M12 2.6c3 2 4.6 5.4 4.6 9.4l-2 4.4H9.4l-2-4.4c0-4 1.6-7.4 4.6-9.4z" fill="#FFF8E6"/><circle cx="12" cy="9.4" r="1.8" fill="#6FA8FF"/><path d="M9.4 16.4L12 21l2.6-4.6z" fill="#F16E60"/>`),
+  cam: s(`<path d="M3 8.4h4l1.6-2.4h6.8L17 8.4h4V19H3z" fill="#6FA8FF"/><circle cx="12" cy="13.4" r="3.6" fill="#FFF8E6"/>`),
   map: s(`<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z" fill="#9BE07F"/><path d="M9 4v14M15 6v14" stroke-width="1.4"/>`),
   check: s(`<path d="M5 12.6l4.4 4.4L19 7.4" fill="none" stroke="#55C879" stroke-width="3.4"/>`),
 };
